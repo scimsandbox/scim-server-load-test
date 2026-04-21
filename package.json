@@ -1,0 +1,18 @@
+{
+  "name": "scim-server-load-test",
+  "version": "0.0.1",
+  "description": "k6 load testing module for the SCIM server",
+  "main": "main.js",
+  "scripts": {
+    "test": "k6 run main.js",
+    "test:discovery": "k6 run main.js --env ONLY_SCENARIO=discovery",
+    "test:bulk": "k6 run main.js --env ONLY_SCENARIO=bulk"
+  },
+  "keywords": [
+    "k6",
+    "scim",
+    "load-test"
+  ],
+  "author": "Eduard Pal",
+  "license": "Apache-2.0"
+}

@@ -1,0 +1,149 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Validate, tag, and publish release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Verify main branch
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_REF_NAME}" != "main" ]]; then
+            echo "This release workflow can only be run manually from main."
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GH_TOKEN }}
+
+      - name: Configure Git
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Resolve release and next version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          release_version="$(node -p "require('./package.json').version")"
+
+          if [[ ! "$release_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "package.json version must contain a semantic version in the form x.y.z: ${release_version}" >&2
+            exit 1
+          fi
+
+          major="${BASH_REMATCH[1]}"
+          minor="${BASH_REMATCH[2]}"
+          patch="${BASH_REMATCH[3]}"
+          next_version="${major}.${minor}.$((patch + 1))"
+          tag_name="v${release_version}"
+
+          echo "release_version=$release_version" >> "$GITHUB_OUTPUT"
+          echo "next_version=$next_version" >> "$GITHUB_OUTPUT"
+          echo "tag_name=$tag_name" >> "$GITHUB_OUTPUT"
+
+      - name: Ensure release tag does not exist
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if git ls-remote --exit-code --tags origin "refs/tags/${{ steps.version.outputs.tag_name }}" >/dev/null 2>&1; then
+            echo "Tag ${{ steps.version.outputs.tag_name }} already exists"
+            exit 1
+          fi
+
+      - name: Package release bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          release_dir="dist/scim-server-load-test-${{ steps.version.outputs.release_version }}"
+          mkdir -p "$release_dir"
+
+          cp LICENSE package.json README.md CONTRIBUTING.md SECURITY.md main.js "$release_dir/"
+          cp -R scenarios src "$release_dir/"
+
+          cat > "$release_dir/config.json" <<'EOF'
+          {
+            "BASE_URL": "http://localhost:8080",
+            "VUS": 5,
+            "DURATION": "30s",
+            "ONLY_SCENARIO": "all",
+            "WORKSPACES": [
+              {
+                "id": "workspace-id",
+                "token": "replace-me"
+              }
+            ]
+          }
+          EOF
+
+          tar -czf "dist/scim-server-load-test-${{ steps.version.outputs.release_version }}.tar.gz" \
+            -C dist "scim-server-load-test-${{ steps.version.outputs.release_version }}"
+
+      - name: Create and push git tag
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git tag -a "${{ steps.version.outputs.tag_name }}" -m "Release ${{ steps.version.outputs.tag_name }}"
+          git push origin "refs/tags/${{ steps.version.outputs.tag_name }}"
+
+      - name: Create GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          gh release create "${{ steps.version.outputs.tag_name }}" \
+            --verify-tag \
+            --generate-notes \
+            --title "${{ steps.version.outputs.tag_name }}" \
+            "dist/scim-server-load-test-${{ steps.version.outputs.release_version }}.tar.gz#scim-server-load-test-${{ steps.version.outputs.release_version }}.tar.gz"
+
+      - name: Bump package version for next development cycle
+        shell: bash
+        env:
+          NEXT_VERSION: ${{ steps.version.outputs.next_version }}
+        run: |
+          set -euo pipefail
+
+          npm version "$NEXT_VERSION" --no-git-tag-version
+
+      - name: Commit next version
+        shell: bash
+        env:
+          NEXT_VERSION: ${{ steps.version.outputs.next_version }}
+        run: |
+          set -euo pipefail
+
+          git add package.json
+          git commit -m "chore(release): prepare next version v${NEXT_VERSION} [skip ci]"
+
+      - name: Push next version commit
+        shell: bash
+        env:
+          TARGET_BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          git push origin "HEAD:${TARGET_BRANCH}"
