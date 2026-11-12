@@ -30,3 +30,6 @@ temp/
 
 # Local configs with secrets
 *.local.json
+
+# Security scan outputs
+trivy-*.sarif
