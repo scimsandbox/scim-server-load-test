@@ -1,7 +1,7 @@
 {
-  "BASE_URL": "https://api2.scimsandbox.net",
-  "VUS": 50,
-  "DURATION": "60s",
+  "BASE_URL": "http://localhost:8080",
+  "VUS": 5,
+  "DURATION": "30s",
   "ONLY_SCENARIO": "all",
   "WORKSPACES": [
     { "id": "YOUR_WORKSPACE_UUID_1", "token": "YOUR_WORKSPACE_TOKEN_1" },
