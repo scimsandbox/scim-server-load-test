@@ -26,25 +26,26 @@ Run the default suite with `npm run test` or `k6 run main.js`.
 
 Use `npm run test:discovery` or `npm run test:bulk` for the packaged targeted flows. For `user_crud`, `group_crud`, or `filtering`, run k6 directly with `ONLY_SCENARIO` set in the environment.
 
-When you override runtime settings, environment variables take precedence over `config.json`, followed by the defaults in `src/config.js`.
+When you override runtime settings, environment variables take precedence over `config.json`, followed by the defaults in `src/config.js`. By default, `config.json` points to `http://localhost:8080` so local runs never target a shared or production deployment unless `BASE_URL` is explicitly overridden.
 
 Runtime variables:
 
-- `BASE_URL`: SCIM API base URL
+- `BASE_URL`: SCIM API base URL (defaults to `http://localhost:8080`; override to target remote deployments)
 - `VUS`: virtual users
 - `DURATION`: run duration
 - `ONLY_SCENARIO`: one of `all`, `discovery`, `user_crud`, `group_crud`, `filtering`, or `bulk`
-- `WORKSPACES_JSON`: JSON array of `{ "id": "...", "token": "..." }` entries
+- `WORKSPACES_FILE`: path to a local gitignored JSON file (for example `scripts/workspaces.local.json`, permissions `0600`) containing an array of `{ "id": "...", "token": "..." }` entries; preferred so Bearer tokens are loaded via k6 `open()` rather than exposed in CLI process arguments
+- `WORKSPACES_JSON`: fallback JSON array of `{ "id": "...", "token": "..." }` entries read from the process environment when `WORKSPACES_FILE` is not set (avoid passing raw tokens via `--env WORKSPACES_JSON=...` on shared hosts)
 
-Example:
+Example using `./scripts/run-tests.sh` or `WORKSPACES_FILE`:
 
 ```bash
 BASE_URL=https://api.example.com \
 VUS=25 \
 DURATION=2m \
 ONLY_SCENARIO=user_crud \
-WORKSPACES_JSON='[{"id":"ws1","token":"<token>"}]' \
-k6 run main.js
+WORKSPACES_FILE=scripts/workspaces.local.json \
+./scripts/run-tests.sh
 ```
 
 ## Versioning

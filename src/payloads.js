@@ -1,11 +1,21 @@
 import { CONFIG } from './config.js';
 
-// Random string generator helper
+const ALPHANUMERIC_CHARS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+const UINT32_RANGE = 2 ** 32;
+const MAX_UNBIASED_UINT32 = UINT32_RANGE - (UINT32_RANGE % ALPHANUMERIC_CHARS.length);
+
+// Cryptographically secure random string generator helper using k6's global WebCrypto API
 export function randomString(length) {
-    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let result = '';
-    for (let i = 0; i < length; i++) {
-        result += chars.charAt(Math.floor(Math.random() * chars.length));
+    const randomValues = new Uint32Array(Math.max(length, 1));
+    while (result.length < length) {
+        crypto.getRandomValues(randomValues);
+        for (let i = 0; i < randomValues.length && result.length < length; i++) {
+            const value = randomValues[i];
+            if (value < MAX_UNBIASED_UINT32) {
+                result += ALPHANUMERIC_CHARS[value % ALPHANUMERIC_CHARS.length];
+            }
+        }
     }
     return result;
 }
@@ -30,7 +40,7 @@ export function generateUserPayload() {
         ],
         active: true,
         [CONFIG.SCHEMAS.ENTERPRISE_USER]: {
-            employeeNumber: `EMP-${Math.floor(Math.random() * 1000000)}`,
+            employeeNumber: `EMP-${crypto.randomUUID()}`,
             department: 'Load Testing'
         }
     };
@@ -53,7 +63,7 @@ export function generateGroupPayload(memberIds = []) {
 
 export function generateBulkPayload(operationCount = 5) {
     const operations = [];
-    
+
     for (let i = 0; i < operationCount; i++) {
         operations.push({
             method: 'POST',
